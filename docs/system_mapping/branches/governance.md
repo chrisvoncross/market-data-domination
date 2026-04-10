@@ -61,3 +61,8 @@ Out of scope:
 
 - `scripts/first_pass_smoke.sh`
 - `scripts/validate_first_pass.sh` (writes `.artifacts/native_resource_profile.txt`)
+- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 30` (writes `.artifacts/live/live_summary.json`)
+
+## Last live check
+
+- 30s live run captured resource profile (`max_rss_kb`) and routed/deal/kline counters

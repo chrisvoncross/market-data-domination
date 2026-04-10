@@ -3,7 +3,9 @@ name = "market-data-domination"
 version = "0.1.0"
 description = "Control plane for market data farmer MVP"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "picows>=1.18.0"
+]
 
 [project.optional-dependencies]
 dev = [
@@ -13,6 +15,7 @@ dev = [
 
 [project.scripts]
 mdf-control = "control_plane.main:main"
+mdf-live = "control_plane.live_run:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

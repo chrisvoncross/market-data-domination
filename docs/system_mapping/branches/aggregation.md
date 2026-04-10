@@ -60,6 +60,7 @@ Outputs:
 
 - `scripts/first_pass_smoke.sh`
 - `scripts/validate_first_pass.sh`
+- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 30`
 
 ## Contract-locked semantics
 
@@ -70,3 +71,7 @@ Outputs:
 ## Remaining gaps
 
 - full production-grade finalize state machine parity with legacy native engine
+
+## Last live check
+
+- live dry-run produced routed events and Min1 final candles through native seam

@@ -48,7 +48,12 @@ Maintain market stream continuity through endpoint/network failures with predict
 ## Run commands
 
 - `PYTHONPATH=src .venv/bin/python -m control_plane.main --runtime-contract docs/handover/mvp_runtime_contract.json`
+- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 30`
 
 ## Remaining gaps
 
 - slot-level reconnect execution loop implementation (contract values already fixed)
+
+## Last live check
+
+- live dry-run via `control_plane.live_run` succeeded (MEXC, 30s)

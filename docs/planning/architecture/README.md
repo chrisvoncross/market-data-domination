@@ -12,3 +12,4 @@ Current key docs:
 
 - `target-architecture-v1.md`
 - `first-pass-build-checklist.md`
+- `picows-optimization-plan.md`

@@ -38,3 +38,4 @@ Primary runtime source:
 - routed events: `event_type=routed_event`
 - finalized minute rows: `event_type=final_candle`
 - snapshot divergence audit: `event_type=mismatch_event`
+- live dry-run summary: `.artifacts/live/live_summary.json`

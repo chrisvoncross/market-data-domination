@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from control_plane.config import load_config
+from control_plane.lance_sink import write_live_artifacts_to_lance
 from control_plane.plan import build_first_pass_plan, validate_against_runtime_contract
 from control_plane.resilience_runtime import (
     build_slot_plan,
@@ -79,6 +80,7 @@ async def run_live(
     capture_feeds: int = 2,
     tier1_dedicated: bool = True,
     feed_path_diversity: bool = True,
+    lance_root: Path | None = None,
 ) -> dict[str, Any]:
     cfg = load_config(cfg_path)
     runtime: RuntimeContract = load_runtime_contract(runtime_path)
@@ -233,6 +235,14 @@ async def run_live(
         elif obj.get("event_type") == "mismatch_event":
             mismatch += 1
 
+    lance_stats = write_live_artifacts_to_lance(
+        raw_path=raw_path,
+        data_plane_out_path=dp_out_path,
+        lance_root=lance_root or Path("data/lance"),
+        contract_version=runtime.version,
+        schema_version=1,
+    )
+
     elapsed = time.time() - start
     cpu_end = resource.getrusage(resource.RUSAGE_SELF)
     cpu_user_sec = max(0.0, cpu_end.ru_utime - cpu_start.ru_utime)
@@ -271,6 +281,13 @@ async def run_live(
         "avg_process_cpu_pct": round(avg_process_cpu_pct, 3),
         "final_candles": final_candles,
         "mismatch_events": mismatch,
+        "lance": {
+            "root": str(lance_root or Path("data/lance")),
+            "raw_rows": lance_stats.raw_rows,
+            "feature_rows": lance_stats.feature_rows,
+            "mismatch_rows": lance_stats.mismatch_rows,
+            "intervals_written": lance_stats.intervals_written,
+        },
         "paths": {
             "main_log": str(main_log_path),
             "raw": str(raw_path),
@@ -292,6 +309,7 @@ def main() -> None:
     parser.add_argument("--no-tier1-dedicated", action="store_false", dest="tier1_dedicated")
     parser.add_argument("--feed-path-diversity", action="store_true", default=True)
     parser.add_argument("--no-feed-path-diversity", action="store_false", dest="feed_path_diversity")
+    parser.add_argument("--lance-root", default="data/lance")
     args = parser.parse_args()
 
     summary = asyncio.run(
@@ -303,6 +321,7 @@ def main() -> None:
             capture_feeds=args.capture_feeds,
             tier1_dedicated=args.tier1_dedicated,
             feed_path_diversity=args.feed_path_diversity,
+            lance_root=Path(args.lance_root),
         )
     )
     print(json.dumps(summary, indent=2, sort_keys=True))

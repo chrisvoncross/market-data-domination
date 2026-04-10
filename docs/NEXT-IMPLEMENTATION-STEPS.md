@@ -57,6 +57,10 @@ Done when:
 - writes succeed under normal load,
 - write lag is observable.
 
+Current status:
+- minimal append path is active in `mdf-live` and writing to `data/lance` tables
+- next hardening target: explicit write-lag/write-error counters and longer soak verification
+
 ## Step 4 - Governance baseline
 
 - Emit: queue pressure, process CPU quota %, RSS ratio, write lag.

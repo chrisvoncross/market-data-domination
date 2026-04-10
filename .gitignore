@@ -14,3 +14,4 @@ native/**/target/
 
 # Local validation outputs
 .artifacts/
+data/lance/

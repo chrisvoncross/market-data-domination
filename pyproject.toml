@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Control plane for market data farmer MVP"
 requires-python = ">=3.11"
 dependencies = [
-  "picows>=1.18.0"
+  "picows>=1.18.0",
+  "lancedb",
+  "pyarrow"
 ]
 
 [project.optional-dependencies]

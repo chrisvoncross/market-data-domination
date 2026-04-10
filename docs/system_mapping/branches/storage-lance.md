@@ -7,7 +7,7 @@
 - status: active
 - last_updated: 2026-04-10
 - last_verified: 2026-04-10
-- verification_method: handover review (`farmer-principles.md`)
+- verification_method: live run + Lance table row count verification
 
 ## Mission
 
@@ -26,20 +26,23 @@ Out of scope:
 
 ## Dataset layout (current)
 
-- raw: `data/lance/raw/<channel>`
-- features: `data/lance/features/<interval>`
+- root: `data/lance/`
+- raw events table: `raw_events`
+- feature tables by interval: `Min1`, `Min5`, `Min15`, `Min60`, ...
+- mismatch audit table: `audit_mismatch`
 
 ## Write profile (current)
 
-- feature batch target: up to `5000` rows or cycle threshold
-- raw batch target: up to `2000` rows or cycle threshold
-- mode: append
+- mode: append-only table adds
+- cadence: per `mdf-live` run output flush
+- table creation: lazy create on first write
 
 ## Core invariants
 
 1. Hot path cannot block on compaction.
 2. Dataset errors do not crash main loops.
 3. Write lag remains observable and actionable.
+4. Feature rows are keyed by `(symbol, interval, minute_time)` semantics.
 
 ## Observability focus
 
@@ -50,8 +53,20 @@ Out of scope:
 
 ## Code locations
 
-- TODO: set concrete runtime paths for raw/features Lance writers, batching policy, cleanup, and compaction.
+- live writer implementation: `src/control_plane/lance_sink.py`
+- live runtime integration: `src/control_plane/live_run.py`
+- schema guidance: `docs/learnings/lance-schema-deep-dive-for-ml-transformer-llm.md`
 
 ## Run commands
 
-- TODO: add dataset smoke-check and write-latency benchmark commands.
+- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 120 --lance-root data/lance`
+- `PYTHONPATH=src .venv/bin/python -c "import lancedb; db=lancedb.connect('data/lance'); print(db.list_tables())"`
+
+## Last live check
+
+- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 180 --lance-root data/lance`
+- result:
+  - raw rows written: `25621`
+  - feature rows written: `26`
+  - mismatch rows written: `11`
+  - interval tables written: `Min1`, `Min5`, `Min15`, `Min60`

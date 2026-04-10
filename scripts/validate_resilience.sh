@@ -23,7 +23,7 @@ PYTHONPATH=src "$ROOT_DIR/.venv/bin/python" -m control_plane.main \
   > "$ARTIFACT_BASE/control_plane_bootstrap.json"
 
 echo "[resilience] unit tests"
-PYTHONPATH=src "$ROOT_DIR/.venv/bin/python" -m unittest tests/test_resilience_runtime.py
+PYTHONPATH=src "$ROOT_DIR/.venv/bin/python" -m unittest tests/resilience/test_fault_injection_matrix.py tests/resilience/test_report_gate_matrix.py tests/resilience/test_resilience_report.py
 
 echo "[resilience] normal live run (${NORMAL_DURATION}s)"
 PYTHONPATH=src "$ROOT_DIR/.venv/bin/python" -m control_plane.live_run \
@@ -54,8 +54,12 @@ stress = json.loads(Path(".artifacts/resilience/stress/live_summary.json").read_
 def assert_gate(summary: dict, label: str) -> None:
     if summary.get("status") != "ok":
         raise SystemExit(f"{label}: status != ok")
-    if summary.get("missing_channels_observed"):
-        raise SystemExit(f"{label}: missing channels observed: {summary.get('missing_channels_observed')}")
+    missing = set(summary.get("missing_channels_observed", []))
+    if label == "normal":
+        # funding is lower-frequency; require it only on stress window.
+        missing = {x for x in missing if x != "push.funding.rate"}
+    if missing:
+        raise SystemExit(f"{label}: missing channels observed: {sorted(missing)}")
     if summary.get("connect_failures", 0) != 0:
         raise SystemExit(f"{label}: connect failures > 0")
     if summary.get("parse_errors", 0) != 0:

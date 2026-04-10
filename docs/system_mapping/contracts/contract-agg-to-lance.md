@@ -7,10 +7,13 @@
 
 ## Required fields (feature rows)
 
+- `row_id` (`symbol:interval:minute_time`)
 - `symbol`
 - `interval`
-- `timestamp_ms`
-- schema and compute metadata (`schema_version`, `compute_version`)
+- `minute_time`
+- `open`, `high`, `low`, `close`, `volume`, `trade_count`
+- `decision_kind`, `is_mismatch`
+- schema metadata (`schema_version`, `source_contract_version`)
 
 ## Delivery semantics
 
@@ -20,9 +23,20 @@
 ## Idempotence guidance
 
 Recommended consumer key:
-- `(symbol, interval, timestamp_ms, schema_version, compute_version)`
+- `(row_id, schema_version)`
 
 ## Versioning
 
 - contract_version: `v1`
 - migration strategy: add new nullable columns first, then promote
+
+## Current Lance tables
+
+- `raw_events`
+- `Min1`, `Min5`, `Min15`, `Min60`, ...
+- `audit_mismatch`
+
+## Current validation outputs
+
+- live run summary includes `lance.raw_rows`, `lance.feature_rows`, `lance.mismatch_rows`
+- latest live run wrote interval tables: `Min1`, `Min5`, `Min15`, `Min60`

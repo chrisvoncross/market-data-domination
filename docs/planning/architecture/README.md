@@ -7,3 +7,8 @@ Use this directory for:
 - data model and schema evolution rules
 - resilience and degradation behavior
 - performance and capacity envelopes
+
+Current key docs:
+
+- `target-architecture-v1.md`
+- `first-pass-build-checklist.md`

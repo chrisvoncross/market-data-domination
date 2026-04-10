@@ -161,3 +161,61 @@ The right operating position is:
 - adopt proven primitives
 - benchmark in your own workload
 - keep observability overhead budgeted and audited continuously
+
+---
+
+## Part C - First-pass architecture package (what to add now)
+
+This is the implementation-oriented first pass for this project:
+
+### C1) Plane split for this repository
+
+- Control plane (Python):
+  - runtime config loading and validation
+  - symbol/timeframe registry management
+  - policy and governance actions (threshold ladder)
+  - operator APIs/CLI and health endpoints
+- Data plane (native/hot path):
+  - websocket frame ingestion loop
+  - parse/normalize hot path
+  - interval aggregation/finalize engine
+  - Lance micro-batch writer path
+
+Design rule:
+- Control plane can change frequently.
+- Data plane must be deterministic, bounded, and regression-tested with replay fixtures.
+
+### C2) What to add in round 1 (must-have)
+
+1. Dynamic timeframe registry with identical aggregation contract across intervals.
+2. Hardcoded symbol scope (3-10 symbols) from config.
+3. Ingest path for `push.deal` and `push.kline` first.
+4. Single interval production path first (`Min1`) to Lance.
+5. Runtime governance signals and action ladder:
+   - queue pressure
+   - write lag
+   - process CPU quota %
+   - RSS ratio
+6. Mismatch evidence and raw retention for forensics.
+7. Deterministic replay test using `farmer-sample-events.ndjson`.
+
+### C3) What to defer (explicitly not round 1)
+
+- 700 symbol target
+- full symbol catalog service
+- multi-exchange abstraction
+- upsert and historical rewrite paths
+- broad profiling matrix before baseline stability
+
+### C4) Acceptance gate for round 1
+
+- 6h soak with no crash
+- no duplicate close for `(symbol, interval, minute_ms)`
+- bounded queues under burst
+- write lag and drop metrics exposed
+- clear degraded behavior under pressure (no deadlock, no unbounded growth)
+
+### C5) Recommended next docs (linked)
+
+- target architecture spec: `docs/planning/architecture/target-architecture-v1.md`
+- first pass checklist: `docs/planning/architecture/first-pass-build-checklist.md`

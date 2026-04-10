@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "first_pass": {
+    "symbols_max_initial": 3,
+    "required_channels": [
+      "push.deal",
+      "push.kline"
+    ],
+    "required_interval": "Min1",
+    "enabled_intervals_dynamic": true,
+    "aggregation_semantics": "identical_across_intervals",
+    "write_mode": "append"
+  }
+}

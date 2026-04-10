@@ -1,0 +1,2 @@
+[console_scripts]
+mdf-control = control_plane.main:main

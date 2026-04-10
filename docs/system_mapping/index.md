@@ -5,7 +5,7 @@
 Fast lookup for all critical system branches.
 
 Companion entry points:
-- root onboarding: `START-HERE.md`
+- onboarding: `docs/START-HERE.md`
 - terminology: `docs/system_mapping/glossary.md`
 
 ## Branch registry

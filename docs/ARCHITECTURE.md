@@ -114,3 +114,4 @@ It is not a universal proof of absolute optimality for every workload, but it is
 - Architecture principle baseline: `docs/learnings/architecture-principles-facts.md`
 - picows resilience baseline: `docs/learnings/picows-resilience-deep-dive.md`
 - Lance schema deep dive: `docs/learnings/lance-schema-deep-dive-for-ml-transformer-llm.md`
+- Root-cause observability baseline: `docs/learnings/root-cause-observability-2026-deep-dive.md`

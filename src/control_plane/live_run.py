@@ -12,6 +12,7 @@ from typing import Any
 
 from control_plane.config import load_config
 from control_plane.lance_sink import write_live_artifacts_to_lance
+from control_plane.observability import ObservabilityConfig, ObservabilityMonitor
 from control_plane.plan import build_first_pass_plan, validate_against_runtime_contract
 from control_plane.resilience_runtime import (
     build_slot_plan,
@@ -20,15 +21,6 @@ from control_plane.resilience_runtime import (
 )
 from control_plane.registry import TimeframeRegistry
 from control_plane.runtime_contract import RuntimeContract, load_runtime_contract
-
-
-def _rss_kb() -> int:
-    status = Path("/proc/self/status").read_text(encoding="utf-8")
-    for line in status.splitlines():
-        if line.startswith("VmRSS:"):
-            return int(line.split()[1])
-    return 0
-
 
 @dataclass
 class LiveStats:
@@ -43,22 +35,11 @@ class LiveStats:
     connect_failures: int = 0
     channel_counts: dict[str, int] = field(default_factory=dict)
     parse_errors: int = 0
-    rss_samples_kb: list[int] = field(default_factory=list)
-
-    @property
-    def max_rss_kb(self) -> int:
-        return max(self.rss_samples_kb) if self.rss_samples_kb else 0
+    max_merged_q_depth: int = 0
 
 
 def _normalize_channel_name(channel: str) -> str:
     return normalize_channel_name(channel)
-
-
-async def _sample_rss(stats: LiveStats, stop_evt: asyncio.Event) -> None:
-    while not stop_evt.is_set():
-        stats.rss_samples_kb.append(_rss_kb())
-        await asyncio.sleep(1.0)
-
 
 def _extract_symbol(obj: dict[str, Any]) -> str:
     sym = obj.get("symbol")
@@ -124,11 +105,35 @@ async def run_live(
             "channel_counts": {ch: 0 for ch in slot.channels},
         }
     merged_q: asyncio.Queue[tuple[int, str]] = asyncio.Queue(maxsize=100000)
-    stop_evt = asyncio.Event()
-    sampler = asyncio.create_task(_sample_rss(stats, stop_evt))
     start = time.time()
+    start_mono = time.monotonic()
     cpu_start = resource.getrusage(resource.RUSAGE_SELF)
     deadline = start + duration_sec
+    current_stage = "ingest"
+    stage_sec: dict[str, float] = {"ingest": 0.0, "data_plane": 0.0, "lance_write": 0.0}
+    stage_started_at = time.monotonic()
+
+    def _metrics_provider() -> dict[str, int | float]:
+        nonlocal current_stage
+        now_mono = time.monotonic()
+        stage_view = dict(stage_sec)
+        stage_view[current_stage] = stage_view.get(current_stage, 0.0) + max(0.0, now_mono - stage_started_at)
+        top_stage = max(stage_view, key=stage_view.get)
+        elapsed = max(1e-6, now_mono - start_mono)
+        top_share = (stage_view[top_stage] / elapsed) * 100.0
+        return {
+            "queue_depth": merged_q.qsize(),
+            "write_lag_ms": 0.0,
+            "drops_total": stats.queue_drops,
+            "top_stage": top_stage,
+            "top_stage_share_pct": round(top_share, 3),
+        }
+
+    obs = ObservabilityMonitor(
+        config=ObservabilityConfig(),
+        metrics_provider=_metrics_provider,
+    )
+    obs.start()
 
     with raw_path.open("w", encoding="utf-8") as raw_file, main_log_path.open(
         "w", encoding="utf-8"
@@ -183,6 +188,7 @@ async def run_live(
             if slot_metric is not None:
                 slot_metric["messages_seen"] += 1
                 slot_metric["channel_counts"][channel] = slot_metric["channel_counts"].get(channel, 0) + 1
+            stats.max_merged_q_depth = max(stats.max_merged_q_depth, merged_q.qsize())
             if channel == "push.deal":
                 stats.deal_frames += 1
             elif channel == "push.kline":
@@ -207,15 +213,16 @@ async def run_live(
             except Exception:
                 pass
 
-        stop_evt.set()
-        await sampler
-
         elapsed = time.time() - start
         main_log.write(
             f"live_run_end elapsed_sec={elapsed:.3f} routed={stats.routed_frames} "
             f"deal={stats.deal_frames} kline={stats.kline_frames} parse_errors={stats.parse_errors}\n"
         )
 
+    stage_sec["ingest"] += max(0.0, time.monotonic() - stage_started_at)
+    obs.record_stage_transition("ingest", "data_plane", stage_sec["ingest"])
+    current_stage = "data_plane"
+    stage_started_at = time.monotonic()
     with raw_path.open("rb") as fin, dp_out_path.open("wb") as fout:
         subprocess.run(
             ["cargo", "run", "--quiet", "--manifest-path", "native/data_plane/Cargo.toml"],
@@ -223,6 +230,8 @@ async def run_live(
             stdout=fout,
             check=True,
         )
+    stage_sec["data_plane"] += max(0.0, time.monotonic() - stage_started_at)
+    obs.record_stage_transition("data_plane", "lance_write", stage_sec["data_plane"])
 
     final_candles = 0
     mismatch = 0
@@ -235,6 +244,8 @@ async def run_live(
         elif obj.get("event_type") == "mismatch_event":
             mismatch += 1
 
+    current_stage = "lance_write"
+    stage_started_at = time.monotonic()
     lance_stats = write_live_artifacts_to_lance(
         raw_path=raw_path,
         data_plane_out_path=dp_out_path,
@@ -242,6 +253,12 @@ async def run_live(
         contract_version=runtime.version,
         schema_version=1,
     )
+    stage_sec["lance_write"] += max(0.0, time.monotonic() - stage_started_at)
+    obs.record_stage_transition("lance_write", "done", stage_sec["lance_write"])
+    current_stage = "done"
+    await obs.stop()
+    obs_paths = obs.write_artifacts(out_dir)
+    obs_rollup = obs.rollup()
 
     elapsed = time.time() - start
     cpu_end = resource.getrusage(resource.RUSAGE_SELF)
@@ -275,10 +292,28 @@ async def run_live(
         "connect_failures": stats.connect_failures,
         "reconnect_count": stats.reconnect_count,
         "slot_metrics": slot_metrics,
-        "max_rss_kb": stats.max_rss_kb,
+        "max_rss_kb": obs_rollup["max_rss_kb"],
+        "max_cpu_sample_pct": obs_rollup["max_cpu_pct"],
+        "max_queue_depth": obs_rollup["max_queue_depth"],
+        "max_merged_q_depth": stats.max_merged_q_depth,
         "cpu_user_sec": round(cpu_user_sec, 6),
         "cpu_sys_sec": round(cpu_sys_sec, 6),
         "avg_process_cpu_pct": round(avg_process_cpu_pct, 3),
+        "stage_sec": {k: round(v, 3) for k, v in stage_sec.items()},
+        "observability": {
+            "sample_count": obs_rollup["sample_count"],
+            "incident_count": obs_rollup["incident_count"],
+            "spike_count": obs_rollup["spike_count"],
+            "stage_transition_count": obs_rollup["stage_transition_count"],
+            "cpu_p95_pct": obs_rollup["cpu_p95_pct"],
+            "cpu_p99_pct": obs_rollup["cpu_p99_pct"],
+            "rss_p95_kb": obs_rollup["rss_p95_kb"],
+            "rss_p99_kb": obs_rollup["rss_p99_kb"],
+            "queue_p95": obs_rollup["queue_p95"],
+            "queue_p99": obs_rollup["queue_p99"],
+            "paths": obs_paths,
+            "latest_snapshot": obs.latest_snapshot(),
+        },
         "final_candles": final_candles,
         "mismatch_events": mismatch,
         "lance": {

@@ -18,8 +18,8 @@ class FirstPassPlan:
 def build_first_pass_plan(
     cfg: FarmerConfig, registry: TimeframeRegistry, runtime: RuntimeContract
 ) -> FirstPassPlan:
-    # MVP: start hardcoded-scope small; avoid 700-symbol blast radius.
-    symbols = cfg.symbols[:3]
+    # First-load test scope: hard cap at 50 symbols.
+    symbols = cfg.symbols[:50]
     channels = [x for x in runtime.channels if x in cfg.channels]
     if len(channels) != len(runtime.channels):
         raise ValueError("Config must include all runtime contract channels for first pass")

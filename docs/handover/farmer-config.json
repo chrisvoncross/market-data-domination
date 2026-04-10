@@ -1,0 +1,113 @@
+{
+  "symbols": [
+    "BTC_USDT",
+    "ETH_USDT",
+    "SOL_USDT"
+  ],
+  "channels": [
+    "push.deal",
+    "push.kline",
+    "push.depth.full",
+    "push.ticker",
+    "push.funding.rate",
+    "push.index.price",
+    "push.fair.price"
+  ],
+  "reconnect": {
+    "base_ms": 1000,
+    "max_ms": 10000,
+    "jitter": 0,
+    "max_retries": null,
+    "cooldown_ms": null
+  },
+  "heartbeat": {
+    "interval_ms": 15000,
+    "timeout_ms": 10000,
+    "missed_before_reconnect": 1
+  },
+  "gap_detection": {
+    "enabled": false,
+    "rule": "TODO_explicit_gap_detector_not_implemented_in_current_ingress",
+    "resync_strategy": "reconnect_and_resume_with_raw_plus_mismatch_forensics"
+  },
+  "dedupe": {
+    "keys": [
+      "TODO_native_engine_internal_keys_not_documented_in_python_layer"
+    ]
+  },
+  "ordering": {
+    "primary": "event_time_minute_ms",
+    "secondary": "recv_ts_ms"
+  },
+  "watermark": {
+    "allowed_lateness_ms": 30000,
+    "close_after_ms": 30000
+  },
+  "aggregation": [
+    {
+      "name": "Min1",
+      "window_ms": 60000,
+      "fields": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "trade_count",
+        "buy_volume",
+        "sell_volume",
+        "amount",
+        "cvd",
+        "vwap",
+        "open_interest",
+        "funding_rate",
+        "index_price",
+        "mark_price",
+        "depth_derived_fields",
+        "position_flow_fields",
+        "liquidation_fields"
+      ]
+    },
+    {
+      "name": "Min5",
+      "window_ms": 300000,
+      "fields": [
+        "same_as_min1"
+      ]
+    },
+    {
+      "name": "Min15",
+      "window_ms": 900000,
+      "fields": [
+        "same_as_min1"
+      ]
+    },
+    {
+      "name": "Min60",
+      "window_ms": 3600000,
+      "fields": [
+        "same_as_min1"
+      ]
+    }
+  ],
+  "lance": {
+    "partition_by": [
+      "raw_channel_dataset",
+      "feature_interval_dataset"
+    ],
+    "batch_max_events": 5000,
+    "batch_max_ms": 250,
+    "mode": "append"
+  },
+  "governance": {
+    "cpu_budget_pct": "TODO_set_per_deployment",
+    "ram_budget_mb": "TODO_set_per_deployment",
+    "queue_max": 100000,
+    "drop_policy": "drop_on_full_enqueue_attempt"
+  },
+  "slos": {
+    "max_lag_ms": "TODO_set_per_deployment",
+    "max_drop_rate": "TODO_set_per_deployment",
+    "max_write_p95_ms": "TODO_set_per_deployment"
+  }
+}

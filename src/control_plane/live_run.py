@@ -10,10 +10,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import picows
-
 from control_plane.config import load_config
 from control_plane.plan import build_first_pass_plan, validate_against_runtime_contract
+from control_plane.resilience_runtime import (
+    build_slot_plan,
+    normalize_channel_name,
+    run_slot_worker,
+)
 from control_plane.registry import TimeframeRegistry
 from control_plane.runtime_contract import RuntimeContract, load_runtime_contract
 
@@ -46,55 +49,8 @@ class LiveStats:
         return max(self.rss_samples_kb) if self.rss_samples_kb else 0
 
 
-class MexcListener(picows.WSListener):
-    def __init__(self) -> None:
-        self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=50000)
-        self.disconnected = asyncio.Event()
-
-    def on_ws_connected(self, transport: picows.WSTransport) -> None:
-        self.transport = transport
-        self.disconnected.clear()
-
-    def on_ws_disconnected(self, transport: picows.WSTransport) -> None:
-        self.disconnected.set()
-
-    def on_ws_frame(self, transport: picows.WSTransport, frame: picows.WSFrame) -> None:
-        if frame.msg_type != picows.WSMsgType.TEXT:
-            return
-        msg = frame.get_payload_as_utf8_text()
-        try:
-            self.queue.put_nowait(msg)
-        except asyncio.QueueFull:
-            # Deliberate loss with backpressure signal would be counters in prod loop.
-            return
-
-
 def _normalize_channel_name(channel: str) -> str:
-    # MEXC docs use push.depth, runtime contract uses push.depth.full.
-    if channel == "push.depth":
-        return "push.depth.full"
-    return channel
-
-
-def _sub_msgs(symbol: str, intervals: list[str], channels: list[str]) -> list[dict[str, Any]]:
-    msgs: list[dict[str, Any]] = []
-    for channel in channels:
-        if channel == "push.deal":
-            msgs.append({"method": "sub.deal", "param": {"symbol": symbol}})
-        elif channel == "push.kline":
-            for interval in intervals:
-                msgs.append({"method": "sub.kline", "param": {"symbol": symbol, "interval": interval}})
-        elif channel == "push.depth.full":
-            msgs.append({"method": "sub.depth.full", "param": {"symbol": symbol, "limit": 20}})
-        elif channel == "push.ticker":
-            msgs.append({"method": "sub.ticker", "param": {"symbol": symbol}})
-        elif channel == "push.funding.rate":
-            msgs.append({"method": "sub.funding.rate", "param": {"symbol": symbol}})
-        elif channel == "push.index.price":
-            msgs.append({"method": "sub.index.price", "param": {"symbol": symbol}})
-        elif channel == "push.fair.price":
-            msgs.append({"method": "sub.fair.price", "param": {"symbol": symbol}})
-    return msgs
+    return normalize_channel_name(channel)
 
 
 async def _sample_rss(stats: LiveStats, stop_evt: asyncio.Event) -> None:
@@ -116,7 +72,13 @@ def _extract_symbol(obj: dict[str, Any]) -> str:
 
 
 async def run_live(
-    cfg_path: Path, runtime_path: Path, out_dir: Path, duration_sec: float
+    cfg_path: Path,
+    runtime_path: Path,
+    out_dir: Path,
+    duration_sec: float,
+    capture_feeds: int = 2,
+    tier1_dedicated: bool = True,
+    feed_path_diversity: bool = True,
 ) -> dict[str, Any]:
     cfg = load_config(cfg_path)
     runtime: RuntimeContract = load_runtime_contract(runtime_path)
@@ -131,9 +93,35 @@ async def run_live(
     summary_path = out_dir / "live_summary.json"
 
     intervals = plan.enabled_intervals
+    slot_plans = build_slot_plan(
+        symbols=plan.symbols,
+        channels=plan.channels,
+        intervals=intervals,
+        capture_feeds=capture_feeds,
+        tier1_dedicated=tier1_dedicated,
+        feed_path_diversity=feed_path_diversity,
+    )
     allowed_channels = set(plan.channels)
     stats = LiveStats()
     stats.channel_counts = {ch: 0 for ch in plan.channels}
+    slot_metrics: dict[str, dict[str, Any]] = {}
+    for slot in slot_plans:
+        slot_metrics[str(slot.slot_id)] = {
+            "slot_id": slot.slot_id,
+            "label": slot.label,
+            "channel_type": slot.channel_type,
+            "symbols": len(slot.symbols),
+            "channels": list(slot.channels),
+            "pinned_ip": slot.pinned_ip,
+            "connect_attempts": 0,
+            "connect_success": 0,
+            "connect_failures": 0,
+            "reconnects": 0,
+            "messages_seen": 0,
+            "queue_drops": 0,
+            "channel_counts": {ch: 0 for ch in slot.channels},
+        }
+    merged_q: asyncio.Queue[tuple[int, str]] = asyncio.Queue(maxsize=100000)
     stop_evt = asyncio.Event()
     sampler = asyncio.create_task(_sample_rss(stats, stop_evt))
     start = time.time()
@@ -146,80 +134,76 @@ async def run_live(
         main_log.write(
             f"live_run_start duration_sec={duration_sec} symbols={plan.symbols} channels={plan.channels}\n"
         )
-        backoff_sec = runtime.reconnect_backoff_base_sec
-        while time.time() < deadline:
-            listener_factory = MexcListener
-            stats.connect_attempts += 1
-            try:
-                transport, listener = await picows.ws_connect(
-                    listener_factory,
-                    "wss://contract.mexc.com/edge",
-                    websocket_handshake_timeout=runtime.reconnect_backoff_max_sec,
-                    enable_auto_ping=True,
-                    auto_ping_idle_timeout=runtime.heartbeat_idle_timeout_sec,
-                    auto_ping_reply_timeout=runtime.heartbeat_reply_timeout_sec,
-                    auto_ping_strategy=picows.WSAutoPingStrategy.PING_PERIODICALLY,
-                    enable_auto_pong=True,
-                    max_frame_size=10 * 1024 * 1024,
+        def _global_drop() -> None:
+            stats.queue_drops += 1
+
+        slot_tasks = [
+            asyncio.create_task(
+                run_slot_worker(
+                    slot=slot,
+                    deadline_ts=deadline,
+                    runtime=runtime,
+                    merged_q=merged_q,
+                    slot_metric=slot_metrics[str(slot.slot_id)],
+                    on_global_drop=_global_drop,
                 )
-            except Exception:
-                stats.connect_failures += 1
-                await asyncio.sleep(min(backoff_sec, max(0.1, deadline - time.time())))
-                backoff_sec = min(backoff_sec * 2.0, runtime.reconnect_backoff_max_sec)
+            )
+            for slot in slot_plans
+        ]
+        while time.time() < deadline:
+            try:
+                slot_id, line = await asyncio.wait_for(merged_q.get(), timeout=1.0)
+            except TimeoutError:
                 continue
 
-            stats.connect_success += 1
-            backoff_sec = runtime.reconnect_backoff_base_sec
-            for symbol in plan.symbols:
-                for msg in _sub_msgs(symbol, intervals, plan.channels):
-                    transport.send(picows.WSMsgType.TEXT, json.dumps(msg).encode("utf-8"))
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                stats.parse_errors += 1
+                continue
 
-            while time.time() < deadline:
-                if listener.disconnected.is_set() and listener.queue.empty():
-                    break
-                try:
-                    line = await asyncio.wait_for(listener.queue.get(), timeout=1.0)
-                except TimeoutError:
-                    continue
+            channel_raw = obj.get("channel")
+            if not isinstance(channel_raw, str):
+                stats.other_frames += 1
+                continue
+            channel = _normalize_channel_name(channel_raw)
+            if channel not in allowed_channels:
+                stats.other_frames += 1
+                continue
 
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    stats.parse_errors += 1
-                    continue
+            symbol = _extract_symbol(obj)
+            if not symbol:
+                continue
 
-                channel_raw = obj.get("channel")
-                if not isinstance(channel_raw, str):
-                    stats.other_frames += 1
-                    continue
-                channel = _normalize_channel_name(channel_raw)
-                if channel not in allowed_channels:
-                    stats.other_frames += 1
-                    continue
+            stats.routed_frames += 1
+            stats.channel_counts[channel] = stats.channel_counts.get(channel, 0) + 1
+            slot_metric = slot_metrics.get(str(slot_id))
+            if slot_metric is not None:
+                slot_metric["messages_seen"] += 1
+                slot_metric["channel_counts"][channel] = slot_metric["channel_counts"].get(channel, 0) + 1
+            if channel == "push.deal":
+                stats.deal_frames += 1
+            elif channel == "push.kline":
+                stats.kline_frames += 1
 
-                symbol = _extract_symbol(obj)
-                if not symbol:
-                    continue
+            rec = {
+                "slot_id": slot_id,
+                "channel": channel,
+                "channel_raw": channel_raw,
+                "symbol": symbol,
+                "payload": obj,
+            }
+            raw_file.write(json.dumps(rec, ensure_ascii=True) + "\n")
 
-                stats.routed_frames += 1
-                stats.channel_counts[channel] = stats.channel_counts.get(channel, 0) + 1
-                if channel == "push.deal":
-                    stats.deal_frames += 1
-                elif channel == "push.kline":
-                    stats.kline_frames += 1
-
-                rec = {
-                    "channel": channel,
-                    "channel_raw": channel_raw,
-                    "symbol": symbol,
-                    "payload": obj,
-                }
-                raw_file.write(json.dumps(rec, ensure_ascii=True) + "\n")
-
-            if time.time() < deadline:
-                stats.reconnect_count += 1
-            transport.send_close()
-            await transport.wait_disconnected()
+        for task in slot_tasks:
+            task.cancel()
+        for task in slot_tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
 
         stop_evt.set()
         await sampler
@@ -257,20 +241,30 @@ async def run_live(
     avg_process_cpu_pct = (cpu_total_sec / elapsed) * 100.0 if elapsed > 0 else 0.0
 
     missing_channels_observed = [ch for ch in plan.channels if stats.channel_counts.get(ch, 0) == 0]
+    stats.connect_attempts = sum(int(m["connect_attempts"]) for m in slot_metrics.values())
+    stats.connect_success = sum(int(m["connect_success"]) for m in slot_metrics.values())
+    stats.connect_failures = sum(int(m["connect_failures"]) for m in slot_metrics.values())
+    stats.reconnect_count = sum(int(m["reconnects"]) for m in slot_metrics.values())
     summary = {
         "status": "ok",
         "contract_version": runtime.version,
         "elapsed_sec": round(elapsed, 3),
+        "slot_count": len(slot_plans),
+        "capture_feeds": capture_feeds,
+        "tier1_dedicated": tier1_dedicated,
+        "feed_path_diversity": feed_path_diversity,
         "routed_frames": stats.routed_frames,
         "deal_frames": stats.deal_frames,
         "kline_frames": stats.kline_frames,
         "channel_counts": stats.channel_counts,
         "missing_channels_observed": missing_channels_observed,
         "parse_errors": stats.parse_errors,
+        "queue_drops": stats.queue_drops,
         "connect_attempts": stats.connect_attempts,
         "connect_success": stats.connect_success,
         "connect_failures": stats.connect_failures,
         "reconnect_count": stats.reconnect_count,
+        "slot_metrics": slot_metrics,
         "max_rss_kb": stats.max_rss_kb,
         "cpu_user_sec": round(cpu_user_sec, 6),
         "cpu_sys_sec": round(cpu_sys_sec, 6),
@@ -293,6 +287,11 @@ def main() -> None:
     parser.add_argument("--runtime-contract", default="docs/handover/mvp_runtime_contract.json")
     parser.add_argument("--duration-sec", type=float, default=45.0)
     parser.add_argument("--out-dir", default=".artifacts/live")
+    parser.add_argument("--capture-feeds", type=int, default=2)
+    parser.add_argument("--tier1-dedicated", action="store_true", default=True)
+    parser.add_argument("--no-tier1-dedicated", action="store_false", dest="tier1_dedicated")
+    parser.add_argument("--feed-path-diversity", action="store_true", default=True)
+    parser.add_argument("--no-feed-path-diversity", action="store_false", dest="feed_path_diversity")
     args = parser.parse_args()
 
     summary = asyncio.run(
@@ -301,6 +300,9 @@ def main() -> None:
             runtime_path=Path(args.runtime_contract),
             out_dir=Path(args.out_dir),
             duration_sec=args.duration_sec,
+            capture_feeds=args.capture_feeds,
+            tier1_dedicated=args.tier1_dedicated,
+            feed_path_diversity=args.feed_path_diversity,
         )
     )
     print(json.dumps(summary, indent=2, sort_keys=True))

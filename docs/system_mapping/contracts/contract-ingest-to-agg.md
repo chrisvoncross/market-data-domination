@@ -52,4 +52,6 @@ Primary runtime source:
 - live dry-run summary: `.artifacts/live/live_summary.json`
 - live data-plane output: `.artifacts/live/live_dp_out.ndjson`
 - all-channel observation check: `missing_channels_observed` in live summary must be empty
-- latest check status: `missing_channels_observed=[]` on 240s live run
+- resilience slot check: `slot_metrics` present with per-slot counters
+- stress report gate: `.artifacts/resilience/resilience_report.json`
+- latest stress status: `pass` (`ROUNDS=3`, `DURATION_SEC=120`)

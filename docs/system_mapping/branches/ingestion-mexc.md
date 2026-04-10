@@ -55,13 +55,15 @@ Outputs:
 ## Code locations
 
 - control-plane live ingestion: `src/control_plane/live_run.py`
+- resilience slot planning/runtime: `src/control_plane/resilience_runtime.py`
 - config/interval registry: `src/control_plane/config.py`, `src/control_plane/registry.py`, `src/control_plane/plan.py`
 - native routing seam: `native/data_plane/src/main.rs`
 
 ## Run commands
 
 - `PYTHONPATH=src .venv/bin/python -m control_plane.main --config docs/handover/farmer-config.json --runtime-contract docs/handover/mvp_runtime_contract.json`
-- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 180`
+- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 120`
+- `scripts/validate_resilience.sh 120 300`
 - `scripts/validate_first_pass.sh`
 
 ## SLO seeds
@@ -72,14 +74,13 @@ Outputs:
 
 ## Last live check
 
-- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 180`
+- command: `scripts/validate_resilience.sh 60 120`
 - result:
-  - run used `--duration-sec 240` for extended validation
-  - routed frames: `11339`
-  - deal frames: `1768`
-  - kline frames: `6373`
+  - normal run routed frames: `5384`
+  - stress run routed frames: `12124`
   - all required channels observed (`missing_channels_observed=[]`)
   - parse errors: `0`
+  - slot metrics included in summary
 
 ## Risks / TODO
 

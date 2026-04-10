@@ -21,6 +21,21 @@ Done when:
 - queue bounds enforced,
 - `missing_channels_observed=[]` in live summary.
 
+## Step 1b - Resilience production gate (required before storage)
+
+- Run baseline + stress validation:
+  - `scripts/validate_resilience.sh 120 300`
+  - `scripts/stress_resilience.sh` with at least `ROUNDS=3`
+- Require pass report at `.artifacts/resilience/resilience_report.json`.
+
+Done when:
+- report status is `pass`,
+- no missing required channels across runs,
+- no connect failures or parse errors in report.
+
+Current status:
+- done (`.artifacts/resilience/resilience_report.json` status `pass`)
+
 ## Step 2 - Aggregate and emit direct-TF candles
 
 - Implement/verify direct kline finalize for all configured intervals (`Min1`, `Min5`, `Min15`, `Min60`, ...).

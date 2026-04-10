@@ -17,8 +17,8 @@ Maintain market stream continuity through endpoint/network failures with predict
 
 - reconnect with exponential backoff (`1s` to `10s`)
 - heartbeat ping/pong supervision (`15s` idle ping, `10s` reply timeout)
-- slot reconnect on missed heartbeat
-- dynamic DNS resolution and IPv4 slot pinning
+- multi-slot reconnect supervisor (critical feeds duplicated)
+- dynamic DNS resolution and optional IPv4 slot pinning (`socket_factory`)
 - primary runtime source: `docs/handover/mvp_runtime_contract.json`
 
 ## Core invariants
@@ -44,24 +44,27 @@ Maintain market stream continuity through endpoint/network failures with predict
 
 - contract validation path: `src/control_plane/runtime_contract.py`
 - plan enforcement path: `src/control_plane/plan.py`
-- live reconnect/heartbeat loop: `src/control_plane/live_run.py`
+- slot planner + worker runtime: `src/control_plane/resilience_runtime.py`
+- live orchestration entrypoint: `src/control_plane/live_run.py`
 
 ## Run commands
 
 - `PYTHONPATH=src .venv/bin/python -m control_plane.main --runtime-contract docs/handover/mvp_runtime_contract.json`
-- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 30`
+- `scripts/validate_resilience.sh 120 300`
+- `scripts/stress_resilience.sh` (defaults: `ROUNDS=3`, `DURATION_SEC=120`)
 
 ## Remaining gaps
 
-- multi-slot sharded ingress worker (single-loop reconnect is implemented; slot fanout path remains future expansion)
+- forced fault-injection coverage should be expanded (current stress gate uses repeated live runs and reconnect evidence)
 
 ## Last live check
 
-- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 240`
+- command: `ROUNDS=3 DURATION_SEC=120 scripts/stress_resilience.sh`
 - result:
-  - connect attempts: `4`
-  - connect success: `4`
-  - reconnect count: `3`
-  - connect failures: `0`
-  - avg process CPU: `1.141%`
-  - max RSS: `30536 kb`
+  - stress report: `.artifacts/resilience/resilience_report.json`
+  - rounds: `3`
+  - report status: `pass`
+  - connect failures: `0` in all rounds
+  - parse errors: `0` in all rounds
+  - all required channels observed in all rounds
+  - observed max RSS: `34880 kb`

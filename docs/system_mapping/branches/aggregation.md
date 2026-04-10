@@ -7,7 +7,7 @@
 - status: active
 - last_updated: 2026-04-10
 - last_verified: 2026-04-10
-- verification_method: handover review + sample event pass
+- verification_method: contract + smoke replay
 
 ## Mission
 
@@ -27,6 +27,7 @@ Out of scope:
 
 - dynamic interval registry expected (`Min1`, `Min5`, `Min15`, `Min60`)
 - all intervals should share same aggregation contract in MVP
+- primary runtime source: `docs/handover/mvp_runtime_contract.json`
 
 ## Core invariants
 
@@ -51,13 +52,19 @@ Outputs:
 
 ## Code locations
 
-- TODO: set concrete runtime paths for due-state engine binding, finalize decision logic, and feature row emission.
+- native seam (current): `native/data_plane/src/main.rs`
+- control-plane validation: `src/control_plane/runtime_contract.py`, `src/control_plane/plan.py`
 
 ## Run commands
 
-- TODO: add replay test commands using `docs/handover/farmer-sample-events.ndjson`.
+- `scripts/first_pass_smoke.sh`
 
-## TODO gaps
+## Contract-locked semantics
 
-- explicit dedupe key disclosure from native layer
-- final production lateness thresholds per deployment
+- dedupe key (deal ingest): `(symbol, minute_ms, trade_id)` when `trade_id > 0`
+- finalize duplicate guard key: `(symbol, interval_code, minute_ms)`
+- tie-break anchor: `ts`, `has_trade_id`, `trade_id/order_key`
+
+## Remaining gaps
+
+- full native finalize decision port (pending; seam currently enforces ingest dedupe behavior)

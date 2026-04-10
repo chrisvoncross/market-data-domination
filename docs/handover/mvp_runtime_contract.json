@@ -1,0 +1,173 @@
+{
+  "contract_version": "2026-04-10.root-baseline.v1",
+  "exchange": "MEXC",
+  "channels": [
+    "push.deal",
+    "push.kline",
+    "push.depth.full",
+    "push.ticker",
+    "push.funding.rate",
+    "push.index.price",
+    "push.fair.price"
+  ],
+  "dedupe": {
+    "keys": {
+      "deal_ingest_primary": [
+        "symbol",
+        "minute_ms",
+        "trade_id"
+      ],
+      "deal_ingest_conditions": {
+        "trade_id_required_for_set_dedupe": true,
+        "trade_id_fields_accepted": [
+          "i",
+          "trade_id"
+        ],
+        "trade_id_non_positive_behavior": "treated_as_missing_no_set_dedupe"
+      },
+      "finalize_verdict_duplicate_guard": [
+        "symbol",
+        "interval_code",
+        "minute_ms"
+      ]
+    },
+    "tie_break": {
+      "deal_sort_before_apply": [
+        "ts_asc",
+        "has_trade_id_desc",
+        "trade_id_asc"
+      ],
+      "open_selection": [
+        "earliest_ts",
+        "if_ts_equal_prefer_has_trade_id",
+        "if_still_equal_smaller_order_key"
+      ],
+      "close_selection": [
+        "latest_ts",
+        "if_ts_equal_prefer_has_trade_id",
+        "if_still_equal_larger_order_key"
+      ],
+      "order_key_rule": {
+        "when_trade_id_present": "order_key=trade_id",
+        "when_trade_id_missing": "order_key=monotonic_event_seq"
+      }
+    },
+    "windows": {
+      "trade_id_seen_window_scope": "per_symbol_min1_minute",
+      "verdict_duplicate_cap": 300000
+    }
+  },
+  "gap_detector": {
+    "mode": "finalize_snapshot_absence_detector",
+    "trigger": {
+      "event": "finalize_decision_called_for_symbol_interval_minute",
+      "condition": "no_snapshot_for_same_key"
+    },
+    "thresholds": {
+      "defer_compare_sec": 25.0,
+      "max_wait_sec": 30.0,
+      "retry_sec": 0.25
+    },
+    "recovery_steps": [
+      "while_allow_missing_false_return_pending_and_retry",
+      "after_max_wait_allow_missing_true_finalize_with_timeout_reason",
+      "emit_mismatch_audit_record_with_decision_kind",
+      "continue_pipeline_without_blocking"
+    ],
+    "decision_kinds_on_gap": [
+      "missing_snapshot_pending",
+      "missing_snapshot_timeout",
+      "warmup_seed_missing_snapshot_pending",
+      "warmup_seed_missing_snapshot_timeout"
+    ]
+  },
+  "reconnect_and_heartbeat": {
+    "connect": {
+      "ws_handshake_timeout_sec": 10.0
+    },
+    "heartbeat": {
+      "auto_ping_enabled": true,
+      "auto_ping_strategy": "periodic",
+      "idle_timeout_sec": 15.0,
+      "reply_timeout_sec": 10.0,
+      "client_ping_payload": {
+        "method": "ping"
+      },
+      "pong_match": [
+        "contains_pong",
+        "contains_method_pong"
+      ]
+    },
+    "reconnect": {
+      "backoff_base_sec": 1.0,
+      "backoff_max_sec": 10.0,
+      "jitter": 0.0,
+      "max_retries": null,
+      "policy": "infinite_until_process_stop"
+    }
+  },
+  "watermark_and_finalize": {
+    "due_source": "native_next_due_ms_and_pop_due",
+    "scheduler_sleep_bounds_sec": {
+      "min": 0.005,
+      "max": 0.2
+    },
+    "final_emit_key": [
+      "symbol",
+      "interval",
+      "minute_ms"
+    ],
+    "final_emit_duplicate_policy": "skip_if_minute_not_newer_or_pending_exists"
+  },
+  "lance": {
+    "mode": "append",
+    "data_storage_version": "2.2",
+    "queue_max": 20000,
+    "flush_interval_sec": 60.0,
+    "flush_max_buffer": 5000,
+    "maintenance_interval_sec": 900.0,
+    "cleanup": {
+      "older_than_minutes": 10,
+      "retain_versions": 2
+    },
+    "compaction": {
+      "min_fragments": 64,
+      "pressure_ceiling": 0.3,
+      "num_threads": 1,
+      "batch_size": 8192,
+      "target_rows_per_fragment": 1048576,
+      "max_bytes_per_file": 268435456,
+      "mode": "force_binary_copy"
+    },
+    "drop_policy": "on_queue_full_drop_new_record_and_increment_drop_counter"
+  },
+  "budgets": {
+    "cpu_pct": 25.0,
+    "ram_mb": 4096,
+    "queue_pressure_ceiling_for_maintenance": 0.3
+  },
+  "slo": {
+    "max_lag_ms": 30000,
+    "max_drop_rate": 0.0,
+    "max_write_p95_ms": 60000
+  },
+  "module_mapping": {
+    "ingestion_resilience": [
+      "control_plane ingress orchestrator",
+      "mexc websocket adapter with sharded slots",
+      "native frame meta extraction boundary"
+    ],
+    "semantic_ordering_and_finalize": [
+      "native apply engine (deal/kline apply + finalize decision)",
+      "control-plane pending-final scheduler and mismatch policy"
+    ],
+    "storage_and_maintenance": [
+      "append-first lance sink worker",
+      "background cleanup and pressure-gated compaction"
+    ],
+    "governance": [
+      "runtime governor snapshot loop",
+      "summary diagnostics and drop counters"
+    ]
+  }
+}

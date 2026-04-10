@@ -20,8 +20,13 @@
 
 ## Idempotence and ordering
 
-- native dedupe applies downstream (exact key details pending documentation)
+- deal dedupe key: `(symbol, minute_ms, trade_id)` when `trade_id > 0`
+- finalize duplicate guard key: `(symbol, interval_code, minute_ms)`
 - late/out-of-order events are accepted within configured finalize window
+- tie-break order basis: `ts`, `has_trade_id`, `trade_id/order_key`
+
+Primary runtime source:
+- `docs/handover/mvp_runtime_contract.json`
 
 ## Versioning
 

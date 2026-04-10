@@ -7,7 +7,7 @@
 - status: active
 - last_updated: 2026-04-10
 - last_verified: 2026-04-10
-- verification_method: handover review (`farmer-principles.md`)
+- verification_method: runtime contract review
 
 ## Mission
 
@@ -19,6 +19,7 @@ Maintain market stream continuity through endpoint/network failures with predict
 - heartbeat ping/pong supervision (`15s` idle ping, `10s` reply timeout)
 - slot reconnect on missed heartbeat
 - dynamic DNS resolution and IPv4 slot pinning
+- primary runtime source: `docs/handover/mvp_runtime_contract.json`
 
 ## Core invariants
 
@@ -41,13 +42,13 @@ Maintain market stream continuity through endpoint/network failures with predict
 
 ## Code locations
 
-- TODO: set concrete runtime paths for reconnect policy, heartbeat supervisor, and DNS/IP slot management.
+- contract validation path: `src/control_plane/runtime_contract.py`
+- plan enforcement path: `src/control_plane/plan.py`
 
 ## Run commands
 
-- TODO: add chaos/reconnect test commands and heartbeat timeout simulation commands.
+- `PYTHONPATH=src .venv/bin/python -m control_plane.main --runtime-contract docs/handover/mvp_runtime_contract.json`
 
-## TODO gaps
+## Remaining gaps
 
-- jitter and cooldown policy are currently unset
-- formal reconnect SLO thresholds still deployment-specific
+- slot-level reconnect execution loop implementation (contract values already fixed)

@@ -7,7 +7,7 @@
 - status: active
 - last_updated: 2026-04-10
 - last_verified: 2026-04-10
-- verification_method: research baseline + handover review
+- verification_method: runtime contract review + control-plane output check
 
 ## Mission
 
@@ -30,6 +30,7 @@ Out of scope:
 - drop-on-full policy at boundaries
 - adaptive finalize sleep on quota/RSS pressure
 - compaction only below pressure threshold
+- primary runtime source: `docs/handover/mvp_runtime_contract.json`
 
 ## Required metrics
 
@@ -38,6 +39,8 @@ Out of scope:
 - `queue_pressure`
 - `write_lag_ms`
 - dropped counters
+- SLO anchors: `max_lag_ms=30000`, `max_drop_rate=0.0`, `max_write_p95_ms=60000`
+- budget anchors: `cpu_pct=25`, `ram_mb=4096`
 
 ## Core invariants
 
@@ -47,13 +50,13 @@ Out of scope:
 
 ## Open decisions
 
-- deployment-specific CPU/RAM budgets
-- final SLO alert thresholds for lag/drop/write p95
+- alert burn-rate policy and paging windows
 
 ## Code locations
 
-- TODO: set concrete runtime paths for pressure classifier, adaptive sleep, queue policy, and telemetry emitters.
+- runtime contract parser: `src/control_plane/runtime_contract.py`
+- surfaced in bootstrap output: `src/control_plane/main.py`
 
 ## Run commands
 
-- TODO: add pressure simulation commands (CPU quota, memory pressure, queue saturation) and expected metric checks.
+- `scripts/first_pass_smoke.sh`

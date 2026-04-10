@@ -32,3 +32,9 @@ Primary runtime source:
 
 - contract_version: `v1`
 - backward compatibility: additive fields only in v1 line
+
+## Current validation outputs
+
+- routed events: `event_type=routed_event`
+- finalized minute rows: `event_type=final_candle`
+- snapshot divergence audit: `event_type=mismatch_event`

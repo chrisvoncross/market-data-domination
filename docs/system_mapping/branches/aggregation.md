@@ -54,10 +54,12 @@ Outputs:
 
 - native seam (current): `native/data_plane/src/main.rs`
 - control-plane validation: `src/control_plane/runtime_contract.py`, `src/control_plane/plan.py`
+- validation harness: `scripts/validate_first_pass.sh`
 
 ## Run commands
 
 - `scripts/first_pass_smoke.sh`
+- `scripts/validate_first_pass.sh`
 
 ## Contract-locked semantics
 
@@ -67,4 +69,4 @@ Outputs:
 
 ## Remaining gaps
 
-- full native finalize decision port (pending; seam currently enforces ingest dedupe behavior)
+- full production-grade finalize state machine parity with legacy native engine

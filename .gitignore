@@ -11,3 +11,6 @@ __pycache__/
 # Rust build artifacts
 target/
 native/**/target/
+
+# Local validation outputs
+.artifacts/

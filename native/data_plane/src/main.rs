@@ -15,12 +15,33 @@ struct InputEvent {
 #[derive(Debug, Serialize)]
 struct OutputEvent {
     route: &'static str,
+    event_type: &'static str,
     channel: String,
     symbol: String,
     minute_ms: Option<i64>,
     trade_id: Option<i64>,
     dedupe_status: &'static str,
     order_key: i64,
+}
+
+#[derive(Debug, Clone)]
+struct DealAgg {
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+    volume: f64,
+    trade_count: i64,
+}
+
+#[derive(Debug, Clone)]
+struct KlineSnapshot {
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+    volume: f64,
+    trade_count: i64,
 }
 
 fn as_i64(v: &Value) -> Option<i64> {
@@ -41,6 +62,90 @@ fn first_deal_data(payload: &Value) -> Option<&Value> {
     payload.get("data")?.as_array()?.first()
 }
 
+fn first_kline_data(payload: &Value) -> Option<&Value> {
+    payload.get("data")?.as_array()?.first()
+}
+
+fn as_f64(v: &Value) -> Option<f64> {
+    if let Some(x) = v.as_f64() {
+        return Some(x);
+    }
+    if let Some(s) = v.as_str() {
+        return s.parse::<f64>().ok();
+    }
+    None
+}
+
+fn finalize_minute(
+    symbol: &str,
+    minute_ms: i64,
+    deal_aggs: &mut HashMap<(String, i64), DealAgg>,
+    snapshots: &HashMap<(String, i64), KlineSnapshot>,
+    emitted: &mut HashSet<(String, i64)>,
+) {
+    let out_key = (symbol.to_string(), minute_ms);
+    if emitted.contains(&out_key) {
+        return;
+    }
+
+    let Some(deal) = deal_aggs.get(&out_key) else {
+        return;
+    };
+
+    let mut decision_kind = "accepted_no_snapshot";
+    let mut final_row = deal.clone();
+    let mut mismatch = false;
+
+    if let Some(snap) = snapshots.get(&out_key) {
+        decision_kind = "snapshot_compare";
+        let diff = (deal.high - snap.high).abs() > 1e-9
+            || (deal.low - snap.low).abs() > 1e-9
+            || (deal.close - snap.close).abs() > 1e-9
+            || (deal.volume - snap.volume).abs() > 1e-9;
+        if diff {
+            mismatch = true;
+            final_row = DealAgg {
+                open: snap.open,
+                high: snap.high,
+                low: snap.low,
+                close: snap.close,
+                volume: snap.volume,
+                trade_count: snap.trade_count,
+            };
+        }
+    }
+
+    let final_event = serde_json::json!({
+        "route": "first_pass",
+        "event_type": "final_candle",
+        "symbol": symbol,
+        "interval": "Min1",
+        "minute_ms": minute_ms,
+        "open": final_row.open,
+        "high": final_row.high,
+        "low": final_row.low,
+        "close": final_row.close,
+        "volume": final_row.volume,
+        "trade_count": final_row.trade_count,
+        "decision_kind": decision_kind
+    });
+    println!("{final_event}");
+
+    if mismatch {
+        let mismatch_event = serde_json::json!({
+            "route": "first_pass",
+            "event_type": "mismatch_event",
+            "symbol": symbol,
+            "interval": "Min1",
+            "minute_ms": minute_ms,
+            "reason": "snapshot_value_diff"
+        });
+        println!("{mismatch_event}");
+    }
+
+    emitted.insert(out_key);
+}
+
 fn main() {
     // First pass seam: native loop reads NDJSON and routes deal/kline.
     // Contract-first behavior:
@@ -49,6 +154,10 @@ fn main() {
     let stdin = io::stdin();
     let mut seq: i64 = 0;
     let mut seen_trade_ids: HashMap<String, HashSet<i64>> = HashMap::new();
+    let mut deal_aggs: HashMap<(String, i64), DealAgg> = HashMap::new();
+    let mut kline_snapshots: HashMap<(String, i64), KlineSnapshot> = HashMap::new();
+    let mut last_minute_by_symbol: HashMap<String, i64> = HashMap::new();
+    let mut emitted_final: HashSet<(String, i64)> = HashSet::new();
 
     for line in stdin.lock().lines().flatten() {
         if line.trim().is_empty() {
@@ -101,18 +210,78 @@ fn main() {
                         } else {
                             dedupe_status = "trade_id_missing_or_non_positive";
                         }
+
+                        if let Some(mm) = minute_ms {
+                            let price = deal.get("p").and_then(as_f64).unwrap_or(0.0);
+                            let qty = deal.get("v").and_then(as_f64).unwrap_or(0.0);
+                            let key = (symbol.clone(), mm);
+                            deal_aggs
+                                .entry(key)
+                                .and_modify(|a| {
+                                    if a.trade_count == 0 {
+                                        a.open = price;
+                                        a.high = price;
+                                        a.low = price;
+                                    } else {
+                                        if price > a.high {
+                                            a.high = price;
+                                        }
+                                        if price < a.low {
+                                            a.low = price;
+                                        }
+                                    }
+                                    a.close = price;
+                                    a.volume += qty;
+                                    a.trade_count += 1;
+                                })
+                                .or_insert(DealAgg {
+                                    open: price,
+                                    high: price,
+                                    low: price,
+                                    close: price,
+                                    volume: qty,
+                                    trade_count: 1,
+                                });
+                        }
                     }
                 }
             } else if channel == "push.kline" {
                 if let Some(payload) = ev.payload.as_ref() {
-                    if let Some(kline) = payload.get("data").and_then(|x| x.as_array()).and_then(|a| a.first()) {
+                    if let Some(kline) = first_kline_data(payload) {
                         minute_ms = kline.get("t").and_then(as_i64);
+                        if let Some(mm) = minute_ms {
+                            let snap = KlineSnapshot {
+                                open: kline.get("o").and_then(as_f64).unwrap_or(0.0),
+                                high: kline.get("h").and_then(as_f64).unwrap_or(0.0),
+                                low: kline.get("l").and_then(as_f64).unwrap_or(0.0),
+                                close: kline.get("c").and_then(as_f64).unwrap_or(0.0),
+                                volume: kline.get("q").and_then(as_f64).unwrap_or(0.0),
+                                trade_count: kline.get("n").and_then(as_i64).unwrap_or(0),
+                            };
+                            kline_snapshots.insert((symbol.clone(), mm), snap);
+                        }
                     }
                 }
             }
 
+            if let Some(mm) = minute_ms {
+                if let Some(prev) = last_minute_by_symbol.get(&symbol).copied() {
+                    if mm > prev {
+                        finalize_minute(
+                            &symbol,
+                            prev,
+                            &mut deal_aggs,
+                            &kline_snapshots,
+                            &mut emitted_final,
+                        );
+                    }
+                }
+                last_minute_by_symbol.insert(symbol.clone(), mm);
+            }
+
             let out = OutputEvent {
                 route: "first_pass",
+                event_type: "routed_event",
                 channel,
                 symbol,
                 minute_ms,
@@ -124,5 +293,16 @@ fn main() {
                 println!("{encoded}");
             }
         }
+    }
+
+    let pending: Vec<(String, i64)> = last_minute_by_symbol.into_iter().collect();
+    for (symbol, minute_ms) in pending {
+        finalize_minute(
+            &symbol,
+            minute_ms,
+            &mut deal_aggs,
+            &kline_snapshots,
+            &mut emitted_final,
+        );
     }
 }

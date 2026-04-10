@@ -60,3 +60,4 @@ Out of scope:
 ## Run commands
 
 - `scripts/first_pass_smoke.sh`
+- `scripts/validate_first_pass.sh` (writes `.artifacts/native_resource_profile.txt`)

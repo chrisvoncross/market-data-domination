@@ -9,4 +9,4 @@
 - **Pressure**: runtime resource stress signal (CPU/RAM/queue/write lag).
 - **Action ladder**: ordered degradation actions under pressure.
 - **SLO**: service-level objective with measurable target.
-- **ADR**: architecture decision record capturing rationale and trade-offs.
+- **Architecture baseline**: the binding architecture rules in `docs/ARCHITECTURE.md`.

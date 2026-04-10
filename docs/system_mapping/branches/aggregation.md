@@ -25,15 +25,16 @@ Out of scope:
 
 ## Window model
 
-- dynamic interval registry expected (`Min1`, `Min5`, `Min15`, `Min60`)
-- all intervals should share same aggregation contract in MVP
+- dynamic interval registry is runtime-driven (`Min1`, `Min5`, `Min15`, `Min60`, ...)
+- all intervals use one unified handler (no timeframe-specific hot-path branch logic)
+- direct exchange kline values are authoritative for each interval finalize
 - primary runtime source: `docs/handover/mvp_runtime_contract.json`
 
 ## Core invariants
 
 1. No duplicate minute close for `(symbol, interval, minute_ms)`.
 2. Event-time remains primary timeline.
-3. Mismatch evidence is retained when decision indicates mismatch.
+3. Min1 local reconstruction can emit mismatch evidence, but final values come from direct exchange kline.
 
 ## Inputs and outputs
 
@@ -67,6 +68,7 @@ Outputs:
 - dedupe key (deal ingest): `(symbol, minute_ms, trade_id)` when `trade_id > 0`
 - finalize duplicate guard key: `(symbol, interval_code, minute_ms)`
 - tie-break anchor: `ts`, `has_trade_id`, `trade_id/order_key`
+- direct-TF finalization source: exchange kline by interval
 
 ## Remaining gaps
 
@@ -74,4 +76,10 @@ Outputs:
 
 ## Last live check
 
-- live dry-run produced routed events and Min1 final candles through native seam
+- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 75`
+- result:
+  - routed frames: `2417`
+  - kline frames: `1919`
+  - final candles: `15`
+  - mismatch events (Min1 local-vs-direct audit): `6`
+  - parse errors: `0`

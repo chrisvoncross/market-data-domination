@@ -12,7 +12,7 @@ If architecture/runtime behavior changed:
 
 - [ ] Updated relevant branch map in `docs/system_mapping/branches/`
 - [ ] Updated relevant contract in `docs/system_mapping/contracts/` (if interface changed)
-- [ ] Added/updated ADR reference in `docs/planning/decisions/`
+- [ ] Updated `docs/ARCHITECTURE.md` (if binding architecture rules changed)
 - [ ] Updated `last_verified` and verification method in affected branch map
 
 ## Validation

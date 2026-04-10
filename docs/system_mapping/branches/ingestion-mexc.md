@@ -7,7 +7,7 @@
 - status: active
 - last_updated: 2026-04-10
 - last_verified: 2026-04-10
-- verification_method: handover review (`docs/handover/*`)
+- verification_method: official docs + runtime code path check
 
 ## Mission
 
@@ -30,7 +30,7 @@ Out of scope:
 - channels:
   - `push.deal`
   - `push.kline`
-  - `push.depth.full`
+  - `push.depth.full` (runtime naming; official docs list `push.depth`)
   - `push.ticker`
   - `push.funding.rate`
   - `push.index.price`
@@ -53,11 +53,15 @@ Outputs:
 
 ## Code locations
 
-- TODO: set concrete runtime paths for WS client, parser, and channel router modules.
+- control-plane live ingestion: `src/control_plane/live_run.py`
+- config/interval registry: `src/control_plane/config.py`, `src/control_plane/registry.py`, `src/control_plane/plan.py`
+- native routing seam: `native/data_plane/src/main.rs`
 
 ## Run commands
 
-- TODO: add exact local start/test/soak commands for ingestion-only pipeline validation.
+- `PYTHONPATH=src .venv/bin/python -m control_plane.main --config docs/handover/farmer-config.json --runtime-contract docs/handover/mvp_runtime_contract.json`
+- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 30`
+- `scripts/validate_first_pass.sh`
 
 ## SLO seeds
 
@@ -65,7 +69,16 @@ Outputs:
 - ingress drop rate at queue boundary
 - ingest lag
 
+## Last live check
+
+- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 75`
+- result:
+  - routed frames: `2417`
+  - deal frames: `498`
+  - kline frames: `1919`
+  - parse errors: `0`
+
 ## Risks / TODO
 
 - explicit gap detector module is not yet implemented
-- exact native dedupe keys not yet documented in Python layer
+- depth channel naming parity (`push.depth` vs `push.depth.full`) requires explicit adapter note in runtime contract

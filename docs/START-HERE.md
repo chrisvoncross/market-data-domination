@@ -14,7 +14,7 @@ Do not create extra planning docs unless explicitly requested.
 1. `docs/system_mapping/index.md`
 2. `docs/system_mapping/branches/` (relevant subsystem only)
 3. `docs/system_mapping/contracts/` (only affected interfaces)
-4. `docs/planning/mvp/mvp-build-sequence-from-handover.md`
+4. `docs/ARCHITECTURE.md`
 5. `docs/NEXT-IMPLEMENTATION-STEPS.md`
 
 Ignore everything else unless blocked.
@@ -22,8 +22,8 @@ Ignore everything else unless blocked.
 ## Current MVP baseline
 
 - symbols: `BTC_USDT`, `ETH_USDT`, `SOL_USDT`
-- first channels: `push.deal`, `push.kline`
-- first interval: `Min1`
+- first channels: `push.deal`, `push.kline`, `push.ticker`, `push.funding.rate`, `push.index.price`, `push.fair.price`
+- intervals: dynamic from config (for example `Min1`, `Min5`, `Min15`, `Min60`)
 - writes: append-only
 - queues: bounded, drop-on-full at boundaries
 

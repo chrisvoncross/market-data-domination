@@ -12,7 +12,7 @@ Prevent architecture-relevant changes from merging without map and contract upda
    - if architecture behavior changed, then:
      - branch map updated
      - contract updated (if interface changed)
-     - ADR linked/updated
+     - `docs/ARCHITECTURE.md` updated (if binding rules changed)
 
 ## Lightweight implementation hint
 

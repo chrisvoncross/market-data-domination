@@ -20,7 +20,7 @@ Companion entry points:
 
 ## C4-level pointers
 
-- L1 System Context: `docs/planning/architecture/` (to be expanded)
+- L1 System Context: `docs/ARCHITECTURE.md`
 - L2 Container View: each branch map "Container Boundaries" section
 - L3 Component View: each branch map "Core Components" section
 

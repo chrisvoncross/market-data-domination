@@ -13,11 +13,12 @@ Done when:
 - no crashes,
 - queue bounds enforced.
 
-## Step 2 - Aggregate and emit Min1
+## Step 2 - Aggregate and emit direct-TF candles
 
-- Implement/verify `Min1` aggregation pipeline.
+- Implement/verify direct kline finalize for all configured intervals (`Min1`, `Min5`, `Min15`, `Min60`, ...).
+- Keep one unified timeframe handler (no TF-specific hot path branches).
 - Enforce no duplicate close for `(symbol, interval, minute_ms)`.
-- Emit mismatch evidence when finalize detects divergence.
+- Emit mismatch evidence when Min1 local reconstruction diverges from direct exchange kline.
 
 Done when:
 - replay file passes,

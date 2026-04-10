@@ -61,11 +61,11 @@ class MexcListener(picows.WSListener):
             pass
 
 
-def _sub_msgs(symbol: str) -> list[dict[str, Any]]:
-    return [
-        {"method": "sub.deal", "param": {"symbol": symbol}},
-        {"method": "sub.kline", "param": {"symbol": symbol, "interval": "Min1"}},
-    ]
+def _sub_msgs(symbol: str, intervals: list[str]) -> list[dict[str, Any]]:
+    msgs: list[dict[str, Any]] = [{"method": "sub.deal", "param": {"symbol": symbol}}]
+    for interval in intervals:
+        msgs.append({"method": "sub.kline", "param": {"symbol": symbol, "interval": interval}})
+    return msgs
 
 
 async def _sample_rss(stats: LiveStats, stop_evt: asyncio.Event) -> None:
@@ -113,8 +113,9 @@ async def run_live(
         enable_auto_pong=True,
     )
 
+    intervals = plan.enabled_intervals
     for symbol in plan.symbols:
-        for msg in _sub_msgs(symbol):
+        for msg in _sub_msgs(symbol, intervals):
             transport.send(picows.WSMsgType.TEXT, json.dumps(msg).encode("utf-8"))
 
     stats = LiveStats()

@@ -16,7 +16,7 @@ This mapping approach combines practical and formal standards:
 - ISO/IEC/IEEE 42010 principles (stakeholders, concerns, views/viewpoints)
 - C4 model hierarchy (context, containers, components)
 - arc42 sectioning discipline for architecture communication
-- ADR-driven decision history
+- architecture-baseline-driven decision history (`docs/ARCHITECTURE.md`)
 - Docs-as-Code workflow
 
 References:
@@ -47,5 +47,5 @@ References:
 3. Every architecture-affecting change must update:
    - relevant branch map
    - related contract (if interface changed)
-   - ADR reference if decision changed
+   - `docs/ARCHITECTURE.md` when binding architecture rules change
 4. No map update without "last verified date" and "verification method".

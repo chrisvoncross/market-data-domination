@@ -17,6 +17,8 @@
 - event-time is primary for aggregation timelines
 - ingest-time is retained for audit and fallback only
 - malformed payloads are skipped, not fatal
+- direct exchange kline is authoritative for final candle values per interval
+- local Min1 reconstruction is validation-only when mismatch auditing is enabled
 
 ## Idempotence and ordering
 
@@ -24,6 +26,7 @@
 - finalize duplicate guard key: `(symbol, interval_code, minute_ms)`
 - late/out-of-order events are accepted within configured finalize window
 - tie-break order basis: `ts`, `has_trade_id`, `trade_id/order_key`
+- no timeframe-specific branch logic: one handler for all configured intervals
 
 Primary runtime source:
 - `docs/handover/mvp_runtime_contract.json`
@@ -39,3 +42,4 @@ Primary runtime source:
 - finalized minute rows: `event_type=final_candle`
 - snapshot divergence audit: `event_type=mismatch_event`
 - live dry-run summary: `.artifacts/live/live_summary.json`
+- live data-plane output: `.artifacts/live/live_dp_out.ndjson`

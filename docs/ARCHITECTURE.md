@@ -11,6 +11,10 @@ This document is the single, operational architecture baseline for this project.
 - **Data plane loops native**
   - hot-path ingest/parse/apply/finalize
   - deterministic, bounded, low-latency execution
+- **Direct exchange timeframe truth**
+  - ingest `push.kline` directly for all configured intervals (for example Min1/5/15/60)
+  - no timeframe-specific code branches in the hot path
+  - exchange kline is final truth for candle close values
 - **Contract-first runtime**
   - behavior is driven by runtime contract, not ad-hoc code assumptions
 - **Append-first storage**
@@ -27,6 +31,8 @@ This document is the single, operational architecture baseline for this project.
 5. No silent drops; every drop must be observable.
 6. No schema drift without version increment.
 7. No secrets or sensitive infra inventories in docs/logs.
+8. Exchange direct kline values are authoritative at finalize time.
+9. Heavy feature engineering is out-of-scope for farmer hot path.
 
 ## 3) Source-of-truth precedence (binding)
 
@@ -44,10 +50,19 @@ If sources conflict, use this order:
   - sharded WS connections
   - heartbeat + reconnect policy
   - path diversity
+  - ingest required channels:
+    - `push.deal`
+    - `push.kline` (all configured intervals)
+    - `push.depth`/runtime depth equivalent
+    - `push.funding.rate`
+    - `push.index.price`
+    - `push.fair.price`
+    - `push.ticker`
 - **Semantics & finalize**
   - dedupe keys and tie-break rules
   - finalize window/deadline policy
   - mismatch audit events
+  - direct kline override when local reconstruction deviates
 - **Storage**
   - raw/features separation
   - append-first, micro-batch
@@ -56,6 +71,9 @@ If sources conflict, use this order:
   - CPU/RAM/queue/write-lag signals
   - action ladder under pressure
   - SLO/Budget enforcement
+- **Derived-minimal in farmer**
+  - only essential integrity and quality metrics
+  - heavy model/feature transforms belong downstream
 
 ## 5) Agent edit rules (binding)
 
@@ -89,3 +107,8 @@ For this project class (single-team, high-performance market data MVP), this str
 - docs-as-code with minimal but strict architecture maps
 
 It is not a universal proof of absolute optimality for every workload, but it is a strong practical target that avoids common failure modes while preserving delivery speed.
+
+## 8) Factual references
+
+- MEXC sourceability baseline: `docs/learnings/mexc-data-sourcing-facts.md`
+- Architecture principle baseline: `docs/learnings/architecture-principles-facts.md`

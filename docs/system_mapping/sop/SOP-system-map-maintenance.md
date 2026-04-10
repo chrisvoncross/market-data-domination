@@ -12,14 +12,14 @@ Update maps when any of these happen:
 2. Interface/schema/queue semantics change.
 3. SLO, budget, threshold, or action ladder changes.
 4. New failure mode discovered in test or production.
-5. ADR supersedes an existing decision.
+5. `docs/ARCHITECTURE.md` binding rules are changed/superseded.
 
 ## Mandatory update steps
 
 1. Update the affected branch file in `branches/`.
 2. Update related contract in `contracts/` (if interface changed).
 3. Update `index.md` if branch status/scope changed.
-4. Add or update ADR reference in planning decisions.
+4. Update `docs/ARCHITECTURE.md` if binding architecture rules changed.
 5. Add dated entry in branch "Change log".
 
 ## Quality gate checklist (must pass)
@@ -41,12 +41,12 @@ Update maps when any of these happen:
 
 - Branch owner updates branch docs.
 - Interface owner updates contract docs.
-- Reviewer confirms consistency across branch/contract/ADR.
+- Reviewer confirms consistency across branch/contract/architecture baseline.
 
-## ADR alignment rule
+## Architecture baseline alignment rule
 
-- If decision changes rationale/constraints, create or supersede ADR.
-- Never delete historical ADR context; link superseding records.
+- If decision changes binding rationale/constraints, update `docs/ARCHITECTURE.md`.
+- Keep change rationale concise in PR and in affected branch/contract docs.
 
 ## Incident feedback loop
 
@@ -55,7 +55,7 @@ After each sev incident:
 1. capture new failure mode
 2. patch branch map and contract if needed
 3. update thresholds/SLO notes
-4. record follow-up ADR if design changed
+4. update `docs/ARCHITECTURE.md` if the incident changes binding architecture rules
 
 ## Docs-as-code enforcement recommendations
 

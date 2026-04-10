@@ -15,13 +15,14 @@ class FirstPassPlan:
     enabled_intervals: list[str]
 
 
-def build_first_pass_plan(cfg: FarmerConfig, registry: TimeframeRegistry) -> FirstPassPlan:
+def build_first_pass_plan(
+    cfg: FarmerConfig, registry: TimeframeRegistry, runtime: RuntimeContract
+) -> FirstPassPlan:
     # MVP: start hardcoded-scope small; avoid 700-symbol blast radius.
     symbols = cfg.symbols[:3]
-    required_channels = ["push.deal", "push.kline"]
-    channels = [x for x in required_channels if x in cfg.channels]
-    if len(channels) != len(required_channels):
-        raise ValueError("Config must include push.deal and push.kline for first pass")
+    channels = [x for x in runtime.channels if x in cfg.channels]
+    if len(channels) != len(runtime.channels):
+        raise ValueError("Config must include all runtime contract channels for first pass")
 
     if "Min1" not in registry.by_name:
         raise ValueError("First pass requires Min1 interval")
@@ -37,10 +38,10 @@ def build_first_pass_plan(cfg: FarmerConfig, registry: TimeframeRegistry) -> Fir
 def validate_against_runtime_contract(
     cfg: FarmerConfig, registry: TimeframeRegistry, runtime: RuntimeContract
 ) -> None:
-    must_have = {"push.deal", "push.kline"}
-    if not must_have.issubset(set(runtime.channels)):
+    must_have = set(runtime.channels)
+    if not {"push.deal", "push.kline"}.issubset(must_have):
         raise ValueError("Runtime contract must include push.deal and push.kline")
     if not must_have.issubset(set(cfg.channels)):
-        raise ValueError("Farmer config must include push.deal and push.kline")
+        raise ValueError("Farmer config must include all runtime contract channels")
     if runtime.required_interval not in registry.by_name:
         raise ValueError(f"Required interval '{runtime.required_interval}' not configured")

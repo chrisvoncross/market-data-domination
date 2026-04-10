@@ -195,7 +195,7 @@ fn main() {
 
         seq += 1;
 
-        if channel == "push.deal" || channel == "push.kline" {
+        if channel.starts_with("push.") {
             let mut minute_ms: Option<i64> = None;
             let mut interval: Option<String> = None;
             let mut trade_id: Option<i64> = None;

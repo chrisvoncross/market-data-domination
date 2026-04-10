@@ -76,10 +76,10 @@ Outputs:
 
 ## Last live check
 
-- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 75`
+- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 240`
 - result:
-  - routed frames: `2417`
-  - kline frames: `1919`
-  - final candles: `15`
-  - mismatch events (Min1 local-vs-direct audit): `6`
+  - routed frames: `11339`
+  - kline frames: `6373`
+  - final candles: `24`
+  - mismatch events (Min1 local-vs-direct audit): `15`
   - parse errors: `0`

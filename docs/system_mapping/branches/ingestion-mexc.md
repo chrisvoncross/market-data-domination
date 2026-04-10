@@ -50,6 +50,7 @@ Inputs:
 Outputs:
 - raw channel records
 - normalized events for aggregation path
+- per-channel coverage counters in live summary
 
 ## Code locations
 
@@ -60,7 +61,7 @@ Outputs:
 ## Run commands
 
 - `PYTHONPATH=src .venv/bin/python -m control_plane.main --config docs/handover/farmer-config.json --runtime-contract docs/handover/mvp_runtime_contract.json`
-- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 30`
+- `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 180`
 - `scripts/validate_first_pass.sh`
 
 ## SLO seeds
@@ -71,11 +72,13 @@ Outputs:
 
 ## Last live check
 
-- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 75`
+- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 180`
 - result:
-  - routed frames: `2417`
-  - deal frames: `498`
-  - kline frames: `1919`
+  - run used `--duration-sec 240` for extended validation
+  - routed frames: `11339`
+  - deal frames: `1768`
+  - kline frames: `6373`
+  - all required channels observed (`missing_channels_observed=[]`)
   - parse errors: `0`
 
 ## Risks / TODO

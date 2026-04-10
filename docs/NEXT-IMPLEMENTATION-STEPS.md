@@ -2,16 +2,24 @@
 
 This is the only operational checklist new agents should execute first.
 
-## Step 1 - Ingest minimal vertical slice
+## Step 1 - Ingest full required MEXC channel set
 
-- Implement/verify `push.deal` + `push.kline` ingest path.
+- Implement/verify ingest path for:
+  - `push.deal`
+  - `push.kline`
+  - `push.depth.full`
+  - `push.ticker`
+  - `push.funding.rate`
+  - `push.index.price`
+  - `push.fair.price`
 - Symbols: `BTC_USDT`, `ETH_USDT`, `SOL_USDT`.
 - Ensure bounded ingress queues and reconnect/heartbeat behavior.
 
 Done when:
 - stream runs stable,
 - no crashes,
-- queue bounds enforced.
+- queue bounds enforced,
+- `missing_channels_observed=[]` in live summary.
 
 ## Step 2 - Aggregate and emit direct-TF candles
 

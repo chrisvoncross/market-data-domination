@@ -7,7 +7,7 @@
 - status: active
 - last_updated: 2026-04-10
 - last_verified: 2026-04-10
-- verification_method: runtime contract review
+- verification_method: runtime contract + live reconnect loop execution
 
 ## Mission
 
@@ -44,6 +44,7 @@ Maintain market stream continuity through endpoint/network failures with predict
 
 - contract validation path: `src/control_plane/runtime_contract.py`
 - plan enforcement path: `src/control_plane/plan.py`
+- live reconnect/heartbeat loop: `src/control_plane/live_run.py`
 
 ## Run commands
 
@@ -52,8 +53,15 @@ Maintain market stream continuity through endpoint/network failures with predict
 
 ## Remaining gaps
 
-- slot-level reconnect execution loop implementation (contract values already fixed)
+- multi-slot sharded ingress worker (single-loop reconnect is implemented; slot fanout path remains future expansion)
 
 ## Last live check
 
-- live dry-run via `control_plane.live_run` succeeded (MEXC, 30s)
+- command: `PYTHONPATH=src .venv/bin/python -m control_plane.live_run --duration-sec 240`
+- result:
+  - connect attempts: `4`
+  - connect success: `4`
+  - reconnect count: `3`
+  - connect failures: `0`
+  - avg process CPU: `1.141%`
+  - max RSS: `30536 kb`

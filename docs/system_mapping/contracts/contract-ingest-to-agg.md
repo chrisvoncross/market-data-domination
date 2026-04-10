@@ -11,6 +11,14 @@
 - `channel`
 - `recv_ts_ms`
 - event payload with event-time field (`t`/`timestamp_ms`) when available
+- required channel set (runtime baseline):
+  - `push.deal`
+  - `push.kline`
+  - `push.depth.full`
+  - `push.ticker`
+  - `push.funding.rate`
+  - `push.index.price`
+  - `push.fair.price`
 
 ## Semantics
 
@@ -43,3 +51,5 @@ Primary runtime source:
 - snapshot divergence audit: `event_type=mismatch_event`
 - live dry-run summary: `.artifacts/live/live_summary.json`
 - live data-plane output: `.artifacts/live/live_dp_out.ndjson`
+- all-channel observation check: `missing_channels_observed` in live summary must be empty
+- latest check status: `missing_channels_observed=[]` on 240s live run

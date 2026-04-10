@@ -28,7 +28,7 @@ def main() -> None:
     runtime = load_runtime_contract(Path(args.runtime_contract))
     registry = TimeframeRegistry.from_config(cfg)
     validate_against_runtime_contract(cfg, registry, runtime)
-    plan = build_first_pass_plan(cfg, registry)
+    plan = build_first_pass_plan(cfg, registry, runtime)
 
     print(
         json.dumps(

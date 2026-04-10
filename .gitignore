@@ -1,1 +1,13 @@
 .venv/
+
+# Python build/cache artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# Rust build artifacts
+target/
+native/**/target/

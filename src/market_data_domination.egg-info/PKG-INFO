@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: market-data-domination
-Version: 0.1.0
-Summary: Control plane for market data farmer MVP
-Requires-Python: >=3.11
-Provides-Extra: dev
-Requires-Dist: pytest>=8.3.0; extra == "dev"
-Requires-Dist: ruff>=0.13.0; extra == "dev"
